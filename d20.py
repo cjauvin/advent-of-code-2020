@@ -136,7 +136,6 @@ def build_image():
         for j in range(N):
             assert g[i][j], [i, j]
 
-    # return g
     rows = []
     for i in range(N):
         row = np.hstack([g[i][j]["tile"][1:9, 1:9] for j in range(N)])
@@ -149,8 +148,10 @@ def build_image():
 
 
 def search_for_monsters(im):
-    # monster rect is 3 x 20
+    # Here in theory I should loop over the variants of `im`, but it seems
+    # that it is not necessary
     n_monsters = 0
+    # monster rect is 3 x 20
     for i in range(8 * N - 3):
         for j in range(8 * N - 20):
             mcs = {im[mi + i, mj + j] for mi, mj in monster}
@@ -159,10 +160,10 @@ def search_for_monsters(im):
     return im[im == "#"].size - (n_monsters * len(monster))
 
 
-# part1 = 1
-# for t in get_corners():
-#     part1 *= t["tid"]
-# print(part1)
+part1 = 1
+for t in get_corners():
+    part1 *= t["tid"]
+print("Part 1:", part1)
 
 im = build_image()
-print(search_for_monsters(im))
+print("Part 2:", search_for_monsters(im))
