@@ -2,8 +2,10 @@ import re
 
 import numpy as np
 
-# with open("d20_test.txt") as f:
-with open("d20.txt") as f:
+# fn = "d20_test.txt"
+fn = "d20.txt"
+
+with open(fn) as f:
     s = f.read().split("\n")
 
 monster_s = """
@@ -28,13 +30,25 @@ for line in s:
 for tid, tile in tiles.items():
     tiles[tid] = np.asarray([list(row) for row in tile])
 
+N = int(np.sqrt(len(tiles)))
+
+
+def get_side(a, which):
+    if which == "up":
+        return tuple(a[0, :])
+    elif which == "right":
+        return tuple(a[:, -1])
+    elif which == "down":
+        return tuple(a[-1, :])
+    elif which == "left":
+        return tuple(a[:, 0])
+
 
 def get_sides(a):
-    return set(map(tuple, [a[0, :], a[-1, :], a[:, 0], a[:, -1]]))
+    return {get_side(a, d) for d in ["up", "right", "down", "left"]}
 
 
 def get_variants(a):
-    # return [np.fliplr(a), np.flipud(a)]
     vs = [a]
     for i in range(2):
         for _ in range(3):
@@ -48,102 +62,107 @@ def get_variants(a):
 
 def get_variant_sides(a):
     sides = set()
-    # sides |= get_sides(a)
-    sides |= get_sides(np.fliplr(a))
-    sides |= get_sides(np.flipud(a))
-    # for _ in range(2):
-    #     for i in range(3):
-    #         a = np.rot90(a)
-    #         sides |= get_sides(a)
-    #     a = np.flipud(a)
-    #     sides |= get_sides(a)
+    for b in get_variants(a):
+        sides |= get_sides(b)
     return sides
 
 
-def part1():
-    n = 1
+def is_side_unique(tid, s):
+    for tid2, tile2 in tiles.items():
+        if tid == tid2:
+            continue
+        if s in get_variant_sides(tile2):
+            return False
+    return True
+
+
+def get_corners():
+    corners = []
     for tid, tile in tiles.items():
-        n_unique = 0
-        for s in get_variant_sides(tile):
-            for tid2, tile2 in tiles.items():
-                if tid == tid2:
+        for a in get_variants(tile):
+            if is_side_unique(tid, get_side(a, "up")) and is_side_unique(
+                tid, get_side(a, "left")
+            ):
+                corners.append({"tid": tid, "tile": a})
+                break
+    return corners
+
+
+def build_image():
+    for c in get_corners():
+
+        g = [[{}] * N for _ in range(N)]
+
+        g[0][0] = c
+        used_tids = {c["tid"]}
+
+        valid = True
+        for i in range(N):
+            for j in range(N):
+                if i == 0 and j == 0:
                     continue
-                if s in get_variant_sides(tile2):
+                elif j == 0:
+                    target_side = get_side(g[i - 1][j]["tile"], "down")
+                    target_dir = "up"
+                else:
+                    target_side = get_side(g[i][j - 1]["tile"], "right")
+                    target_dir = "left"
+
+                found = False
+                for tid, tile in tiles.items():
+                    if tid in used_tids:
+                        continue
+                    for b in get_variants(tile):
+                        if get_side(b, target_dir) == target_side:
+                            g[i][j] = {"tid": tid, "tile": b}
+                            used_tids.add(tid)
+                            found = True
+                            break
+                    if found:
+                        break
+
+                valid = found
+
+                if not valid:
                     break
-            else:
-                n_unique += 1
-        if n_unique == 4:
-            print(tid, n_unique)
-            n *= tid
-    return n
+
+            if not valid:
+                break
+
+        if valid:
+            break
+
+    for i in range(N):
+        for j in range(N):
+            assert g[i][j], [i, j]
+
+    # return g
+    rows = []
+    for i in range(N):
+        row = np.hstack([g[i][j]["tile"][1:9, 1:9] for j in range(N)])
+        rows.append(row)
+    im = np.vstack(rows)
+
+    assert im.shape == (8 * N, 8 * N)
+
+    return im
 
 
-# print(part1())
-
-
-def search_for_monster(a, b, c):
-
-    d = np.hstack((a[1:9, 1:9], b[1:9, 1:9], c[1:9, 1:9]))
-    assert d.shape == (8, 24)
+def search_for_monsters(im):
     # monster rect is 3 x 20
-    for i in range(5):  # 8 - 3
-        for j in range(4):  # 24 - 20
-            mcs = {d[mi + i, mj + j] for mi, mj in monster}
-            # print(mcs)
+    n_monsters = 0
+    for i in range(8 * N - 3):
+        for j in range(8 * N - 20):
+            mcs = {im[mi + i, mj + j] for mi, mj in monster}
             if mcs == {"#"}:
-                n = d[d == "#"].size
-                return n - len(monster)
-    return 0
+                n_monsters += 1
+    return im[im == "#"].size - (n_monsters * len(monster))
 
 
-def find_2_on_right(tid):
-    # ts = set()
-    ts = []
-    for a in get_variants(tiles[tid]):
-        a_right = tuple(a[:, -1])
-        for tid2, tile2 in tiles.items():
-            if tid2 == tid:
-                continue
-            for b in get_variants(tile2):
-                b_left = tuple(b[:, 0])
-                b_right = tuple(b[:, -1])
-                if a_right == b_left:
-                    for tid3, tile3 in tiles.items():
-                        if tid2 == tid3 or tid == tid3:
-                            continue
-                        for c in get_variants(tile3):
-                            c_left = tuple(c[:, 0])
-                            if b_right == c_left:
-                                # print(tid, tid2, tid3)
-                                # if (tid, tid2, tid3) == (1951, 2311, 3079):
-                                #     print(search_for_monster(a, b, c))
-                                # ts.add((tid, tid2, tid3))
-                                # ts.append((a, b, c))
-                                ts.append({tid: a, tid2: b, tid3: c})
-    return ts
+# part1 = 1
+# for t in get_corners():
+#     part1 *= t["tid"]
+# print(part1)
 
-
-print()
-
-monster_tids = set()
-total = 0
-
-for tid, tile in tiles.items():
-    for t in find_2_on_right(tid):
-        if n := search_for_monster(*t.values()):
-            print(tid, n, list(t.keys()))
-            mtids = set(t.keys())
-            if not (monster_tids & mtids):
-                # print(tid, mtids)
-                monster_tids |= mtids
-                total += n
-            else:
-                print(">>", tid, mtids)
-
-# for tid, tile in tiles.items():
-#     if tid not in monster_tids:
-#         tile2 = tile[1:9, 1:9]
-#         total += tile2[tile2 == "#"].size
-
-# print(total)
-# print(len(monster_tids))
+im = build_image()
+print(search_for_monsters(im))
