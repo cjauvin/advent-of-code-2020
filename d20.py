@@ -2,9 +2,20 @@ import re
 
 import numpy as np
 
-with open("d20_test.txt") as f:
-    # with open("d20.txt") as f:
+# with open("d20_test.txt") as f:
+with open("d20.txt") as f:
     s = f.read().split("\n")
+
+monster_s = """
+                  #
+#    ##    ##    ###
+ #  #  #  #  #  #
+"""
+monster = []
+for i, line in enumerate(monster_s.strip("\n").split("\n")):
+    for j, c in enumerate(line):
+        if c == "#":
+            monster.append((i, j))
 
 tiles = {}
 for line in s:
@@ -23,14 +34,15 @@ def get_sides(a):
 
 
 def get_variants(a):
-    return (a, np.fliplr(a), np.flipud(a))
+    # return [np.fliplr(a), np.flipud(a)]
     vs = [a]
-    # for _ in range(1):
-    for _ in range(3):
-        a = np.rot90(a)
-        vs.append(a)
-        # a = np.flipud(a)
-        # vs.append(a)
+    for i in range(2):
+        for _ in range(3):
+            a = np.rot90(a)
+            vs.append(a)
+        if i == 0:
+            a = np.fliplr(a)
+            vs.append(a)
     return vs
 
 
@@ -69,7 +81,24 @@ def part1():
 # print(part1())
 
 
+def search_for_monster(a, b, c):
+
+    d = np.hstack((a[1:9, 1:9], b[1:9, 1:9], c[1:9, 1:9]))
+    assert d.shape == (8, 24)
+    # monster rect is 3 x 20
+    for i in range(5):  # 8 - 3
+        for j in range(4):  # 24 - 20
+            mcs = {d[mi + i, mj + j] for mi, mj in monster}
+            # print(mcs)
+            if mcs == {"#"}:
+                n = d[d == "#"].size
+                return n - len(monster)
+    return 0
+
+
 def find_2_on_right(tid):
+    # ts = set()
+    ts = []
     for a in get_variants(tiles[tid]):
         a_right = tuple(a[:, -1])
         for tid2, tile2 in tiles.items():
@@ -86,26 +115,35 @@ def find_2_on_right(tid):
                             c_left = tuple(c[:, 0])
                             if b_right == c_left:
                                 # print(tid, tid2, tid3)
-                                return (tid, tid2, tid3)
-    return None
+                                # if (tid, tid2, tid3) == (1951, 2311, 3079):
+                                #     print(search_for_monster(a, b, c))
+                                # ts.add((tid, tid2, tid3))
+                                # ts.append((a, b, c))
+                                ts.append({tid: a, tid2: b, tid3: c})
+    return ts
 
 
-# tid = 2473
-# tile = tiles[tid]
-# neighbors = set()
-# for s in get_variant_sides(tile):
-#     for tid2, tile2 in tiles.items():
-#         if tid2 == tid:
-#             continue
-#         if s in get_variant_sides(tile2):
-#             neighbors.add(tid2)
-# print(neighbors)
+print()
 
-# find_2_on_right(1951)
-# find_2_on_right(2729)
-# find_2_on_right(2971)
-# print(find_2_on_right(3079))
+monster_tids = set()
+total = 0
 
 for tid, tile in tiles.items():
-    if t := find_2_on_right(tid):
-        print(t)
+    for t in find_2_on_right(tid):
+        if n := search_for_monster(*t.values()):
+            print(tid, n, list(t.keys()))
+            mtids = set(t.keys())
+            if not (monster_tids & mtids):
+                # print(tid, mtids)
+                monster_tids |= mtids
+                total += n
+            else:
+                print(">>", tid, mtids)
+
+# for tid, tile in tiles.items():
+#     if tid not in monster_tids:
+#         tile2 = tile[1:9, 1:9]
+#         total += tile2[tile2 == "#"].size
+
+# print(total)
+# print(len(monster_tids))
